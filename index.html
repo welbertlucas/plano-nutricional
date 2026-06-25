@@ -243,6 +243,30 @@
   .profile-sub { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 2px; font-weight: 500; }
   .profile-chevron { color: rgba(255,255,255,0.35); font-size: 18px; }
 
+  /* EXAMES */
+  .exam-upload-card { background: var(--black-card); border-radius: var(--radius-lg); padding: 32px 16px; text-align: center; cursor: pointer; transition: opacity .15s; border: 2px dashed rgba(255,255,255,0.15); }
+  .exam-upload-card:active { opacity: 0.8; }
+  .exam-upload-card i { font-size: 36px; color: var(--orange); display: block; margin-bottom: 10px; }
+  .exam-upload-title { font-size: 15px; font-weight: 700; color: var(--on-black); margin-bottom: 4px; }
+  .exam-upload-sub { font-size: 12px; color: var(--on-black-muted); font-weight: 500; }
+
+  .exam-card { background: var(--surface); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 10px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 14px; }
+  .exam-icon { width: 46px; height: 46px; background: var(--black-card); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .exam-icon i { font-size: 22px; color: var(--orange); }
+  .exam-info { flex: 1; min-width: 0; }
+  .exam-title { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .exam-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; font-weight: 500; }
+  .exam-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: var(--black-card); color: var(--orange); margin-top: 4px; }
+  .exam-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .exam-empty { text-align: center; padding: 40px 16px; color: var(--text-subtle); font-size: 13px; font-weight: 500; }
+  .exam-empty i { font-size: 36px; display: block; margin-bottom: 12px; opacity: 0.4; }
+
+  .exam-viewer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 150; display: flex; flex-direction: column; }
+  .exam-viewer-bar { display: flex; align-items: center; justify-content: space-between; padding: 54px 16px 14px; background: var(--black); }
+  .exam-viewer-title { font-size: 14px; font-weight: 700; color: #fff; flex: 1; margin: 0 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .exam-viewer-frame { flex: 1; width: 100%; border: none; background: #fff; }
+  .exam-close-btn { width: 34px; height: 34px; border-radius: 10px; border: none; background: rgba(255,255,255,0.1); color: #fff; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
   @media (max-width: 480px) {
     .metric-grid { grid-template-columns: 1fr 1fr; }
     .supp-grid { grid-template-columns: 1fr; }
@@ -364,12 +388,64 @@
       <div class="hist-list" id="wo-hist-list"><div class="hist-empty">Nenhum treino registrado ainda.</div></div>
     </div>
 
+    <!-- EXAMES -->
+    <div id="section-exames" class="section">
+      <div class="section-header">Meus exames</div>
+
+      <!-- Upload -->
+      <div class="exam-upload-card" onclick="document.getElementById('exam-file-input').click()">
+        <i class="ti ti-upload"></i>
+        <div class="exam-upload-title">Adicionar exame</div>
+        <div class="exam-upload-sub">Toque para selecionar um PDF</div>
+        <input type="file" id="exam-file-input" accept="application/pdf" style="display:none" onchange="handleExamUpload(event)">
+      </div>
+
+      <!-- Form de cadastro (aparece após selecionar arquivo) -->
+      <div id="exam-form" style="display:none">
+        <div class="form-card" style="margin-top:12px">
+          <div class="form-card-title"><i class="ti ti-file-text"></i> Dados do exame</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Nome do arquivo</label>
+              <input type="text" id="exam-name" placeholder="Ex: Hemograma completo">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Data do exame</label>
+              <input type="date" id="exam-date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Categoria</label>
+              <select id="exam-category" style="width:100%;padding:9px 11px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;font-weight:600">
+                <option value="Sangue">Sangue</option>
+                <option value="Hormônios">Hormônios</option>
+                <option value="Imagem">Imagem</option>
+                <option value="Urina">Urina</option>
+                <option value="Cardiológico">Cardiológico</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Observações (opcional)</label>
+              <input type="text" id="exam-notes" placeholder="Ex: Em jejum, laboratório X">
+            </div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px">
+            <button class="btn btn-green" onclick="saveExam()"><i class="ti ti-device-floppy"></i> Salvar exame</button>
+            <button class="btn btn-outline" onclick="cancelExamForm()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de exames -->
+      <div id="exam-list" style="margin-top:4px"></div>
+    </div>
+
   </div><!-- /.app -->
 
   <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
     <button class="nav-btn active" onclick="showSection('diet',this)">
-      <div class="nav-indicator"><i class="ti ti-fork-knife"></i></div>Dieta
+      <div class="nav-indicator"><i class="ti ti-salad"></i></div>Dieta
     </button>
     <button class="nav-btn" onclick="showSection('supps',this)">
       <div class="nav-indicator"><i class="ti ti-pill"></i></div>Suplem.
@@ -383,6 +459,9 @@
     <button class="nav-btn" onclick="showSection('treino',this)">
       <div class="nav-indicator"><i class="ti ti-barbell"></i></div>Treino
     </button>
+    <button class="nav-btn" onclick="showSection('exames',this)">
+      <div class="nav-indicator"><i class="ti ti-file-text"></i></div>Exames
+    </button>
   </nav>
 
 </div><!-- /#main-app -->
@@ -390,7 +469,7 @@
 <script>
 // ── PERFIS ────────────────────────────────────────────────────────────────────
 const PROFILES = [
-  { id: 'lucas',  name: 'Lucas',  color: '#16a34a', sub: 'Superávit leve · ~3.350 kcal/dia' },
+  { id: 'lucas',  name: 'Lucas',  color: '#16a34a', sub: 'Ganho de massa muscular · ~3.350 kcal/dia' },
   { id: 'loanne', name: 'Loanne', color: '#7c3aed', sub: 'Configure seu plano abaixo' },
 ];
 
@@ -430,6 +509,7 @@ function selectProfile(id) {
   evLoad();
   clLoad();
   wLoadProfile();
+  exLoad();
   renderMeals(id);
   renderSupps(id);
   renderChecklist();
@@ -1303,6 +1383,117 @@ function addEval() {
     document.getElementById(id).value = '';
   });
   renderCharts();
+}
+
+// ── EXAMES ────────────────────────────────────────────────────────────────────
+let exams = [];
+let pendingExamFile = null;
+
+function exLoad() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(pfKey('exams')) || '[]');
+    exams = saved;
+  } catch(e) { exams = []; }
+  renderExams();
+}
+
+function exPersist() {
+  localStorage.setItem(pfKey('exams'), JSON.stringify(exams));
+}
+
+function handleExamUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.type !== 'application/pdf') { alert('Selecione um arquivo PDF.'); return; }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    pendingExamFile = { name: file.name, data: e.target.result, size: file.size };
+    document.getElementById('exam-name').value = file.name.replace('.pdf','');
+    document.getElementById('exam-date').value = new Date().toISOString().slice(0,10);
+    document.getElementById('exam-form').style.display = 'block';
+    document.getElementById('exam-file-input').value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveExam() {
+  if (!pendingExamFile) return;
+  const name  = document.getElementById('exam-name').value.trim() || pendingExamFile.name;
+  const date  = document.getElementById('exam-date').value;
+  const cat   = document.getElementById('exam-category').value;
+  const notes = document.getElementById('exam-notes').value.trim();
+  if (!date) { alert('Informe a data do exame.'); return; }
+
+  exams.push({ id: Date.now(), name, date, category: cat, notes, data: pendingExamFile.data, size: pendingExamFile.size });
+  exPersist();
+  pendingExamFile = null;
+  cancelExamForm();
+  renderExams();
+}
+
+function cancelExamForm() {
+  pendingExamFile = null;
+  document.getElementById('exam-form').style.display = 'none';
+  document.getElementById('exam-name').value = '';
+  document.getElementById('exam-date').value = '';
+  document.getElementById('exam-notes').value = '';
+}
+
+function deleteExam(id) {
+  if (!confirm('Excluir este exame?')) return;
+  exams = exams.filter(e => e.id !== id);
+  exPersist();
+  renderExams();
+}
+
+function openExam(id) {
+  const exam = exams.find(e => e.id === id);
+  if (!exam) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'exam-viewer-overlay';
+  overlay.id = 'exam-viewer';
+  const sizeKb = Math.round(exam.size / 1024);
+  overlay.innerHTML = `
+    <div class="exam-viewer-bar">
+      <button class="exam-close-btn" onclick="closeExamViewer()"><i class="ti ti-x"></i></button>
+      <div class="exam-viewer-title">${exam.name}</div>
+      <a href="${exam.data}" download="${exam.name}.pdf" style="color:var(--orange);font-size:22px;display:flex;align-items:center"><i class="ti ti-download"></i></a>
+    </div>
+    <iframe class="exam-viewer-frame" src="${exam.data}" title="${exam.name}"></iframe>`;
+  document.body.appendChild(overlay);
+}
+
+function closeExamViewer() {
+  const v = document.getElementById('exam-viewer');
+  if (v) v.remove();
+}
+
+function renderExams() {
+  const list = document.getElementById('exam-list');
+  if (!list) return;
+  if (!exams.length) {
+    list.innerHTML = `<div class="exam-empty"><i class="ti ti-file-off"></i>Nenhum exame anexado ainda.<br>Toque em "Adicionar exame" para começar.</div>`;
+    return;
+  }
+  const sorted = [...exams].sort((a,b) => b.date.localeCompare(a.date));
+  list.innerHTML = sorted.map(e => {
+    const d = new Date(e.date+'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'short', year:'numeric'});
+    const sizeKb = Math.round(e.size / 1024);
+    return `<div class="exam-card">
+      <div class="exam-icon"><i class="ti ti-file-type-pdf"></i></div>
+      <div class="exam-info" onclick="openExam(${e.id})" style="cursor:pointer">
+        <div class="exam-title">${e.name}</div>
+        <div class="exam-meta">${d} · ${sizeKb} KB</div>
+        <span class="exam-badge">${e.category}</span>
+        ${e.notes ? `<div class="exam-meta" style="margin-top:4px">${e.notes}</div>` : ''}
+      </div>
+      <div class="exam-actions">
+        <button class="icon-btn" onclick="openExam(${e.id})" title="Visualizar"><i class="ti ti-eye"></i></button>
+        <button class="icon-btn danger" onclick="deleteExam(${e.id})" title="Excluir"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
