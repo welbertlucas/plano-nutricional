@@ -197,10 +197,19 @@
   .set-btn:hover { border-color: var(--green); color: var(--green); }
   .set-btn.done { background: var(--green); border-color: var(--green); color: #fff; }
 
-  .off-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 48px 16px; text-align: center; }
-  .off-card i { font-size: 36px; margin-bottom: 12px; display: block; color: var(--text-subtle); }
+  .off-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px 16px 24px; text-align: center; }
+  .off-card i.off-icon { font-size: 36px; margin-bottom: 12px; display: block; color: var(--text-subtle); }
   .off-card-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
-  .off-card-sub { font-size: 13px; color: var(--text-muted); }
+  .off-card-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+  .off-card-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* modal de edição de avaliação */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+  .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .btn-red { background: var(--red); color: #fff; border: none; }
+  .btn-red:hover { background: #b91c1c; }
 
   .icon-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border-strong); background: transparent; cursor: pointer; color: var(--text-muted); font-size: 14px; display: inline-flex; align-items: center; justify-content: center; transition: all .15s; }
   .icon-btn:hover { background: var(--bg); color: var(--text); }
@@ -333,7 +342,7 @@
       <div class="eval-table-wrap">
         <table class="eval-table">
           <thead><tr>
-            <th>Data</th><th>Idade</th><th>Peso</th><th>BF%</th><th>MM%</th><th>Água%</th><th>TMB</th><th>IMC</th><th>Δ Peso</th>
+            <th>Data</th><th>Idade</th><th>Peso</th><th>BF%</th><th>MM%</th><th>Água%</th><th>TMB</th><th>IMC</th><th>Δ Peso</th><th></th>
           </tr></thead>
           <tbody id="eval-tbody"></tbody>
         </table>
@@ -500,13 +509,95 @@ function clGetHistory() {
   try { return JSON.parse(localStorage.getItem('pn_cl_hist') || '{}'); } catch(e) { return {}; }
 }
 
-let evals = [
-  {date:"2026-02-15", age:null, weight:106.4, height:193, bf:18.5, mm:null, water:null, bmr:null, imc:null},
-  {date:"2026-06-25", age:null, weight:103.0, height:193, bf:16.0, mm:null, water:null, bmr:2072, imc:null},
-].map(e => {
-  if (!e.imc && e.weight && e.height) e.imc = parseFloat((e.weight / ((e.height/100)**2)).toFixed(1));
-  return e;
-});
+let evals = [];
+let editEvalIdx = null;
+
+function evLoad() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('pn_evals') || 'null');
+    if (saved && saved.length) {
+      evals = saved;
+    } else {
+      evals = [
+        {date:"2026-02-15", age:null, weight:106.4, height:193, bf:18.5, mm:null, water:null, bmr:null, imc:null},
+        {date:"2026-06-25", age:null, weight:103.0, height:193, bf:16.0, mm:null, water:null, bmr:2072, imc:null},
+      ].map(e => {
+        if (!e.imc && e.weight && e.height) e.imc = parseFloat((e.weight / ((e.height/100)**2)).toFixed(1));
+        return e;
+      });
+      evPersist();
+    }
+  } catch(e) {
+    evals = [];
+  }
+}
+
+function evPersist() {
+  localStorage.setItem('pn_evals', JSON.stringify(evals));
+}
+
+function openEditEval(idx) {
+  editEvalIdx = idx;
+  const e = evals[idx];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'eval-modal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title"><i class="ti ti-pencil"></i> Editar avaliação</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Data</label><input type="date" id="ef-date" value="${e.date}"></div>
+        <div class="form-group"><label class="form-label">Idade</label><input type="number" id="ef-age" placeholder="anos" value="${e.age??''}"></div>
+        <div class="form-group"><label class="form-label">Peso (kg)</label><input type="number" id="ef-weight" step="0.1" value="${e.weight??''}"></div>
+        <div class="form-group"><label class="form-label">Altura (cm)</label><input type="number" id="ef-height" value="${e.height??''}"></div>
+        <div class="form-group"><label class="form-label">% Gordura</label><input type="number" id="ef-bf" step="0.1" value="${e.bf??''}"></div>
+        <div class="form-group"><label class="form-label">% Massa muscular</label><input type="number" id="ef-mm" step="0.1" value="${e.mm??''}"></div>
+        <div class="form-group"><label class="form-label">Água corporal (%)</label><input type="number" id="ef-water" step="0.1" value="${e.water??''}"></div>
+        <div class="form-group"><label class="form-label">TMB (kcal)</label><input type="number" id="ef-bmr" value="${e.bmr??''}"></div>
+        <div class="form-group"><label class="form-label">IMC</label><input type="number" id="ef-imc" step="0.01" value="${e.imc??''}"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-green" onclick="saveEditEval()"><i class="ti ti-device-floppy"></i> Salvar</button>
+        <button class="btn btn-outline" onclick="closeEvalModal()">Cancelar</button>
+        <button class="btn btn-red" onclick="deleteEval(${idx})" style="margin-left:auto"><i class="ti ti-trash"></i> Excluir</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeEvalModal(); });
+  document.body.appendChild(overlay);
+}
+
+function closeEvalModal() {
+  const m = document.getElementById('eval-modal');
+  if (m) m.remove();
+  editEvalIdx = null;
+}
+
+function saveEditEval() {
+  if (editEvalIdx === null) return;
+  const date   = document.getElementById('ef-date').value;
+  const weight = parseFloat(document.getElementById('ef-weight').value) || null;
+  const height = parseFloat(document.getElementById('ef-height').value) || null;
+  const bf     = parseFloat(document.getElementById('ef-bf').value) || null;
+  const mm     = parseFloat(document.getElementById('ef-mm').value) || null;
+  const water  = parseFloat(document.getElementById('ef-water').value) || null;
+  const bmr    = parseFloat(document.getElementById('ef-bmr').value) || null;
+  const age    = parseFloat(document.getElementById('ef-age').value) || null;
+  let   imc    = parseFloat(document.getElementById('ef-imc').value) || null;
+  if (!date || !weight) { alert('Preencha ao menos data e peso.'); return; }
+  if (!imc && weight && height) imc = parseFloat((weight / ((height/100)**2)).toFixed(1));
+  evals[editEvalIdx] = {date, age, weight, height, bf, mm, water, bmr, imc};
+  evPersist();
+  closeEvalModal();
+  renderCharts();
+}
+
+function deleteEval(idx) {
+  if (!confirm('Excluir esta avaliação?')) return;
+  evals.splice(idx, 1);
+  evPersist();
+  closeEvalModal();
+  renderCharts();
+}
 
 let charts = {};
 
@@ -572,15 +663,25 @@ function wGetHistory() {
 function selectWorkoutDay(idx) { selectedWorkoutDay = idx; wEditMode = null; renderWorkout(); }
 
 function wAddEx(dayIdx) {
-  wEditMode = {dayIdx, exId: null};
+  wEditMode = {dayIdx, exId: null, cardio: false};
   renderWorkout();
   setTimeout(() => { const el = document.getElementById('w-ex-name'); if (el) el.focus(); }, 50);
 }
 
-function wEditEx(dayIdx, exId) {
-  wEditMode = {dayIdx, exId};
+function wAddCardio(dayIdx) {
+  wEditMode = {dayIdx, exId: null, cardio: true};
   renderWorkout();
-  setTimeout(() => { const el = document.getElementById('w-ex-name'); if (el) el.focus(); }, 50);
+  setTimeout(() => { const el = document.getElementById('w-cardio-name'); if (el) el.focus(); }, 50);
+}
+
+function wEditEx(dayIdx, exId) {
+  const ex = (wExercises[dayIdx] || []).find(e => e.id === exId);
+  wEditMode = {dayIdx, exId, cardio: ex && ex.type === 'cardio'};
+  renderWorkout();
+  setTimeout(() => {
+    const el = document.getElementById(wEditMode.cardio ? 'w-cardio-name' : 'w-ex-name');
+    if (el) el.focus();
+  }, 50);
 }
 
 function wCancelEdit() { wEditMode = null; renderWorkout(); }
@@ -655,6 +756,47 @@ function wFormHtml(dayIdx, ex) {
   </div>`;
 }
 
+function wCardioFormHtml(dayIdx, ex) {
+  return `<div class="w-form-card">
+    <div style="display:grid;grid-template-columns:1fr 90px 1fr;gap:8px">
+      <div class="form-group">
+        <label class="form-label">Atividade</label>
+        <input type="text" id="w-cardio-name" placeholder="ex: Esteira, Bike, Caminhada" value="${ex ? ex.name : ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Duração (min)</label>
+        <input type="number" id="w-cardio-duration" placeholder="30" min="1" value="${ex ? ex.duration : ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Intensidade</label>
+        <input type="text" id="w-cardio-intensity" placeholder="ex: Moderada, 7 km/h" value="${ex ? ex.intensity : ''}">
+      </div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn btn-green" onclick="wSaveCardioForm(${dayIdx})"><i class="ti ti-device-floppy"></i> Salvar</button>
+      <button class="btn btn-outline" onclick="wCancelEdit()">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+function wSaveCardioForm(dayIdx) {
+  const name      = (document.getElementById('w-cardio-name').value || '').trim();
+  const duration  = parseInt(document.getElementById('w-cardio-duration').value) || null;
+  const intensity = (document.getElementById('w-cardio-intensity').value || '').trim();
+  if (!name) { document.getElementById('w-cardio-name').focus(); return; }
+  if (wEditMode.exId === null) {
+    const id = wNextId++;
+    localStorage.setItem('pn_wid', wNextId);
+    wExercises[dayIdx].push({id, name, duration, intensity, type: 'cardio', sets: 1, reps: '—', carga: ''});
+  } else {
+    const ex = wExercises[dayIdx].find(e => e.id === wEditMode.exId);
+    if (ex) Object.assign(ex, {name, duration, intensity, type: 'cardio'});
+  }
+  localStorage.setItem('pn_wex', JSON.stringify(wExercises));
+  wEditMode = null;
+  renderWorkout();
+}
+
 function renderWorkout() {
   const todayIdx = jsDay2workout[new Date().getDay()];
 
@@ -672,35 +814,63 @@ function renderWorkout() {
   const wd   = workoutDays[selectedWorkoutDay];
   const exs  = wExercises[selectedWorkoutDay] || [];
 
-  if (wd.label === 'Off') {
+  if (wd.label === 'Off' && !exs.length && !(wEditMode && wEditMode.dayIdx === selectedWorkoutDay)) {
     body.innerHTML = `<div class="off-card">
-      <i class="ti ti-zzz"></i>
+      <i class="ti ti-zzz off-icon"></i>
       <div class="off-card-title">Dia de descanso</div>
       <div class="off-card-sub">${wd.muscles}</div>
+      <div class="off-card-actions">
+        <button class="btn btn-outline" onclick="wAddEx(${selectedWorkoutDay})"><i class="ti ti-barbell"></i> Adicionar treino</button>
+        <button class="btn btn-outline" onclick="wAddCardio(${selectedWorkoutDay})"><i class="ti ti-run"></i> Adicionar cardio</button>
+      </div>
     </div>`;
+    renderWorkoutHistory();
     return;
   }
 
-  const totalSets = exs.reduce((a, ex) => a + ex.sets, 0);
+  const totalSets = exs.reduce((a, ex) => a + (ex.type === 'cardio' ? 1 : ex.sets), 0);
   const doneSets  = exs.reduce((a, ex) => {
+    if (ex.type === 'cardio') { return a + (wSetState[selectedWorkoutDay+'-'+ex.id+'-0'] ? 1 : 0); }
     for (let s = 0; s < ex.sets; s++) if (wSetState[selectedWorkoutDay+'-'+ex.id+'-'+s]) a++;
     return a;
   }, 0);
 
+  const dayLabel = wd.label === 'Off' ? (exs.length ? 'Off + Atividade' : 'Off') : wd.label;
   const header = `<div class="workout-day-header">
     <div>
-      <div class="workout-day-name">${wd.label}</div>
+      <div class="workout-day-name">${dayLabel}</div>
       <div class="workout-day-muscles">${wd.muscles}</div>
     </div>
     <div>
       <div class="workout-sets-done">${totalSets ? doneSets+'/'+totalSets : '—'}</div>
-      <div class="workout-sets-label">séries</div>
+      <div class="workout-sets-label">${exs.some(e=>e.type==='cardio') ? 'atividades' : 'séries'}</div>
     </div>
   </div>`;
 
   const exerciseCards = exs.map(ex => {
     const isEditing = wEditMode && wEditMode.dayIdx === selectedWorkoutDay && wEditMode.exId === ex.id;
-    if (isEditing) return wFormHtml(selectedWorkoutDay, ex);
+    if (isEditing) return ex.type === 'cardio' ? wCardioFormHtml(selectedWorkoutDay, ex) : wFormHtml(selectedWorkoutDay, ex);
+
+    if (ex.type === 'cardio') {
+      const done = !!wSetState[selectedWorkoutDay+'-'+ex.id+'-0'];
+      return `<div class="exercise-card">
+        <div class="exercise-top">
+          <div>
+            <div class="exercise-name"><i class="ti ti-run" style="font-size:13px;margin-right:4px"></i>${ex.name}</div>
+            <div class="exercise-meta">${ex.duration ? ex.duration+' min' : ''}${ex.intensity ? ' · '+ex.intensity : ''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            ${done ? `<span class="exercise-badge">✓ Feito</span>` : ''}
+            <button class="icon-btn" onclick="wEditEx(${selectedWorkoutDay},${ex.id})" title="Editar"><i class="ti ti-pencil"></i></button>
+            <button class="icon-btn danger" onclick="wDeleteEx(${selectedWorkoutDay},${ex.id})" title="Excluir"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+        <div class="sets-row">
+          <button class="set-btn ${done?'done':''}" style="width:auto;padding:0 14px" onclick="toggleSet(${selectedWorkoutDay},${ex.id},0)">${done?'✓ Concluído':'Marcar como feito'}</button>
+        </div>
+      </div>`;
+    }
+
     let done = 0;
     const btns = Array.from({length: ex.sets}, (_, si) => {
       const d = !!wSetState[selectedWorkoutDay+'-'+ex.id+'-'+si];
@@ -723,9 +893,13 @@ function renderWorkout() {
     </div>`;
   }).join('');
 
-  const addSection = (wEditMode && wEditMode.dayIdx === selectedWorkoutDay && wEditMode.exId === null)
-    ? wFormHtml(selectedWorkoutDay, null)
-    : `<button class="btn btn-outline" style="width:100%;justify-content:center;margin-top:8px" onclick="wAddEx(${selectedWorkoutDay})"><i class="ti ti-plus"></i> Adicionar exercício</button>`;
+  const isAddingNew = wEditMode && wEditMode.dayIdx === selectedWorkoutDay && wEditMode.exId === null;
+  const addSection = isAddingNew
+    ? (wEditMode.cardio ? wCardioFormHtml(selectedWorkoutDay, null) : wFormHtml(selectedWorkoutDay, null))
+    : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="wAddEx(${selectedWorkoutDay})"><i class="ti ti-plus"></i> Exercício</button>
+        <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="wAddCardio(${selectedWorkoutDay})"><i class="ti ti-run"></i> Cardio</button>
+       </div>`;
 
   const resetBtn = exs.length
     ? `<div style="margin-top:8px"><button class="btn btn-outline" onclick="resetWorkout(${selectedWorkoutDay})"><i class="ti ti-refresh"></i> Reiniciar treino</button></div>`
@@ -972,10 +1146,11 @@ function renderCharts() {
 function renderEvalTable(sorted) {
   const tbody = document.getElementById('eval-tbody');
   if (!sorted.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Nenhuma avaliação cadastrada ainda.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Nenhuma avaliação cadastrada ainda.</td></tr>';
     return;
   }
-  tbody.innerHTML = sorted.map((e,i) => {
+  tbody.innerHTML = sorted.map((e, i) => {
+    const origIdx = evals.indexOf(e);
     const prev = sorted[i-1];
     const diff = prev ? (e.weight - prev.weight) : null;
     let badge = '—';
@@ -995,6 +1170,7 @@ function renderEvalTable(sorted) {
       <td>${e.bmr ?? '—'}${e.bmr ? ' kcal' : ''}</td>
       <td>${e.imc ?? '—'}</td>
       <td>${badge}</td>
+      <td><button class="icon-btn" onclick="openEditEval(${origIdx})" title="Editar"><i class="ti ti-pencil"></i></button></td>
     </tr>`;
   }).join('');
 }
@@ -1014,6 +1190,7 @@ function addEval() {
   if (!imc && weight && height) imc = parseFloat((weight / ((height/100)**2)).toFixed(1));
 
   evals.push({date, age, weight, height, bf, mm, water, bmr, imc});
+  evPersist();
   ['f-date','f-age','f-weight','f-height','f-bf','f-mm','f-water','f-bmr','f-imc'].forEach(id => {
     document.getElementById(id).value = '';
   });
@@ -1021,6 +1198,7 @@ function addEval() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+evLoad();
 clLoad();
 renderMeals();
 renderSupps();
