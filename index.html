@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Plano Nutricional — Lucas</title>
+<title>Plano Nutricional</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2316a34a'/><rect x='5' y='21' width='8' height='22' rx='3' fill='white'/><rect x='13' y='26' width='7' height='12' rx='2' fill='white'/><rect x='20' y='29' width='24' height='6' rx='2' fill='white'/><rect x='44' y='26' width='7' height='12' rx='2' fill='white'/><rect x='51' y='21' width='8' height='22' rx='3' fill='white'/></svg>">
 <meta name="theme-color" content="#16a34a">
-<meta name="apple-mobile-web-app-title" content="Plano Lucas">
+<meta name="apple-mobile-web-app-title" content="Plano Nutricional">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -237,13 +237,51 @@
     .hist-row { grid-template-columns: 90px 1fr 32px 60px; }
     .hist-row.has-tag { grid-template-columns: 90px 36px 1fr 32px 60px; }
   }
+  /* PERFIS */
+  .profile-screen { position: fixed; inset: 0; background: var(--bg); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .profile-screen.hidden { display: none; }
+  .profile-box { width: 100%; max-width: 380px; }
+  .profile-box h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; text-align: center; }
+  .profile-box p { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 24px; }
+  .profile-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .profile-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: pointer; transition: all .15s; }
+  .profile-card:hover { border-color: var(--green); }
+  .profile-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .profile-info { flex: 1; }
+  .profile-name { font-size: 15px; font-weight: 600; color: var(--text); }
+  .profile-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .profile-chevron { color: var(--text-subtle); font-size: 18px; }
+
+  /* HEADER COM TROCA DE PERFIL */
+  .header { margin-bottom: 24px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .header-left h1 { font-size: 22px; font-weight: 600; }
+  .header-left p { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+  .profile-switch-btn { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-muted); white-space: nowrap; transition: all .15s; font-family: 'Inter', sans-serif; flex-shrink: 0; }
+  .profile-switch-btn:hover { border-color: var(--green); color: var(--green); }
+  .profile-switch-avatar { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
 </style>
 </head>
 <body>
-<div class="app">
+<!-- ── TELA DE PERFIS ─────────────────────────────────────── -->
+<div id="profile-screen" class="profile-screen">
+  <div class="profile-box">
+    <h1>Plano Nutricional</h1>
+    <p>Selecione seu perfil para continuar</p>
+    <div class="profile-list" id="profile-list"></div>
+  </div>
+</div>
+
+<div class="app" id="main-app" style="display:none">
   <div class="header">
-    <h1>Plano nutricional</h1>
-    <p>Lucas · Superávit leve · ~3.350 kcal/dia · Hipertrofia com mínimo ganho de gordura</p>
+    <div class="header-left">
+      <h1 id="header-title">Plano nutricional</h1>
+      <p id="header-sub"></p>
+    </div>
+    <button class="profile-switch-btn" onclick="switchProfile()">
+      <div class="profile-switch-avatar" id="switch-avatar"></div>
+      <span id="switch-name"></span>
+      <i class="ti ti-chevron-down" style="font-size:14px"></i>
+    </button>
   </div>
 
   <nav class="nav">
@@ -358,9 +396,68 @@
     <div class="hist-list" id="wo-hist-list"><div class="hist-empty">Nenhum treino registrado ainda.</div></div>
   </div>
 
-</div>
+</div><!-- /.app -->
+</div><!-- /#main-app -->
 
 <script>
+// ── PERFIS ────────────────────────────────────────────────────────────────────
+const PROFILES = [
+  { id: 'lucas',  name: 'Lucas',  color: '#16a34a', sub: 'Superávit leve · ~3.350 kcal/dia' },
+  { id: 'loanne', name: 'Loanne', color: '#7c3aed', sub: 'Configure seu plano abaixo' },
+];
+
+let currentProfile = null;
+let NS = ''; // namespace para localStorage
+
+function pfKey(key) { return `${NS}_${key}`; }
+
+function renderProfileScreen() {
+  document.getElementById('profile-list').innerHTML = PROFILES.map(p => `
+    <div class="profile-card" onclick="selectProfile('${p.id}')">
+      <div class="profile-avatar" style="background:${p.color}">${p.name[0]}</div>
+      <div class="profile-info">
+        <div class="profile-name">${p.name}</div>
+        <div class="profile-sub">${p.sub}</div>
+      </div>
+      <i class="ti ti-chevron-right profile-chevron"></i>
+    </div>`).join('');
+}
+
+function selectProfile(id) {
+  currentProfile = PROFILES.find(p => p.id === id);
+  NS = 'pn_' + id;
+  document.getElementById('profile-screen').classList.add('hidden');
+  document.getElementById('main-app').style.display = 'block';
+  document.getElementById('header-title').textContent = 'Plano nutricional';
+  document.getElementById('header-sub').textContent = currentProfile.name + ' · ' + currentProfile.sub;
+  document.getElementById('switch-name').textContent = currentProfile.name;
+  document.getElementById('switch-avatar').style.background = currentProfile.color;
+  document.getElementById('switch-avatar').textContent = currentProfile.name[0];
+  // Resetar estado em memória antes de carregar novo perfil
+  evals = []; checkState = []; wExercises = []; wSetState = {}; wNextId = 1;
+  charts = {};
+  Object.keys(charts).forEach(k => { try { charts[k].destroy(); } catch(e){} });
+  charts = {};
+  // Carregar dados do perfil selecionado
+  evLoad();
+  clLoad();
+  wLoadProfile();
+  renderMeals(id);
+  renderSupps(id);
+  renderChecklist();
+  renderWorkout();
+  // Voltar para aba dieta
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('section-diet').classList.add('active');
+  document.querySelector('.nav-btn').classList.add('active');
+}
+
+function switchProfile() {
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('profile-screen').classList.remove('hidden');
+}
+
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const meals = [
   {
@@ -477,7 +574,7 @@ let checkState = new Array(checkItems.length).fill(false);
 
 function clLoad() {
   try {
-    const saved = JSON.parse(localStorage.getItem('pn_cl_today') || 'null');
+    const saved = JSON.parse(localStorage.getItem(pfKey('cl_today')) || 'null');
     if (saved && saved.date === todayStr()) {
       checkState = saved.state;
       if (checkState.length < checkItems.length)
@@ -491,7 +588,7 @@ function clLoad() {
 }
 
 function clPersist() {
-  localStorage.setItem('pn_cl_today', JSON.stringify({date: todayStr(), state: checkState}));
+  localStorage.setItem(pfKey('cl_today'), JSON.stringify({date: todayStr(), state: checkState}));
 }
 
 function clArchive(date, state) {
@@ -501,12 +598,12 @@ function clArchive(date, state) {
     hist[date] = {done: state.filter(Boolean).length, total: checkItems.length};
     const trimmed = {};
     Object.keys(hist).sort().slice(-90).forEach(k => trimmed[k] = hist[k]);
-    localStorage.setItem('pn_cl_hist', JSON.stringify(trimmed));
+    localStorage.setItem(pfKey('cl_hist'), JSON.stringify(trimmed));
   } catch(e) {}
 }
 
 function clGetHistory() {
-  try { return JSON.parse(localStorage.getItem('pn_cl_hist') || '{}'); } catch(e) { return {}; }
+  try { return JSON.parse(localStorage.getItem(pfKey('cl_hist')) || '{}'); } catch(e) { return {}; }
 }
 
 let evals = [];
@@ -514,26 +611,29 @@ let editEvalIdx = null;
 
 function evLoad() {
   try {
-    const saved = JSON.parse(localStorage.getItem('pn_evals') || 'null');
+    const saved = JSON.parse(localStorage.getItem(pfKey('evals')) || 'null');
     if (saved && saved.length) {
       evals = saved;
     } else {
-      evals = [
-        {date:"2026-02-15", age:null, weight:106.4, height:193, bf:18.5, mm:null, water:null, bmr:null, imc:null},
-        {date:"2026-06-25", age:null, weight:103.0, height:193, bf:16.0, mm:null, water:null, bmr:2072, imc:null},
-      ].map(e => {
-        if (!e.imc && e.weight && e.height) e.imc = parseFloat((e.weight / ((e.height/100)**2)).toFixed(1));
-        return e;
-      });
+      // Dados iniciais apenas para Lucas
+      if (currentProfile && currentProfile.id === 'lucas') {
+        evals = [
+          {date:"2026-02-15", age:null, weight:106.4, height:193, bf:18.5, mm:null, water:null, bmr:null, imc:null},
+          {date:"2026-06-25", age:null, weight:103.0, height:193, bf:16.0, mm:null, water:null, bmr:2072, imc:null},
+        ].map(e => {
+          if (!e.imc && e.weight && e.height) e.imc = parseFloat((e.weight / ((e.height/100)**2)).toFixed(1));
+          return e;
+        });
+      } else {
+        evals = [];
+      }
       evPersist();
     }
-  } catch(e) {
-    evals = [];
-  }
+  } catch(e) { evals = []; }
 }
 
 function evPersist() {
-  localStorage.setItem('pn_evals', JSON.stringify(evals));
+  localStorage.setItem(pfKey('evals'), JSON.stringify(evals));
 }
 
 function openEditEval(idx) {
@@ -619,21 +719,23 @@ let wSetState  = {};
 let wNextId    = 1;
 let wEditMode  = null;
 
-(function wLoad() {
+function wLoadProfile() {
   try {
-    const ex = localStorage.getItem('pn_wex'); if (ex) wExercises = JSON.parse(ex);
-    const st = localStorage.getItem('pn_wst'); if (st) wSetState  = JSON.parse(st);
-    const id = localStorage.getItem('pn_wid'); if (id) wNextId    = parseInt(id);
+    wExercises = workoutDays.map(() => []);
+    wSetState = {}; wNextId = 1;
+    const ex = localStorage.getItem(pfKey('wex')); if (ex) wExercises = JSON.parse(ex);
+    const st = localStorage.getItem(pfKey('wst')); if (st) wSetState  = JSON.parse(st);
+    const id = localStorage.getItem(pfKey('wid')); if (id) wNextId    = parseInt(id);
     const today    = todayStr();
-    const lastDate = localStorage.getItem('pn_wo_date') || today;
+    const lastDate = localStorage.getItem(pfKey('wo_date')) || today;
     if (lastDate !== today) {
       wArchiveSession(lastDate, wSetState);
       wSetState = {};
-      localStorage.setItem('pn_wst', '{}');
+      localStorage.setItem(pfKey('wst'), '{}');
     }
-    localStorage.setItem('pn_wo_date', today);
+    localStorage.setItem(pfKey('wo_date'), today);
   } catch(e) {}
-})();
+}
 
 function wArchiveSession(dateStr, setState) {
   if (!dateStr) return;
@@ -652,12 +754,12 @@ function wArchiveSession(dateStr, setState) {
     hist[dateStr] = {workout: wd.label, done, total};
     const trimmed = {};
     Object.keys(hist).sort().slice(-90).forEach(k => trimmed[k] = hist[k]);
-    localStorage.setItem('pn_wo_hist', JSON.stringify(trimmed));
+    localStorage.setItem(pfKey('wo_hist'), JSON.stringify(trimmed));
   } catch(e) {}
 }
 
 function wGetHistory() {
-  try { return JSON.parse(localStorage.getItem('pn_wo_hist') || '{}'); } catch(e) { return {}; }
+  try { return JSON.parse(localStorage.getItem(pfKey('wo_hist')) || '{}'); } catch(e) { return {}; }
 }
 
 function selectWorkoutDay(idx) { selectedWorkoutDay = idx; wEditMode = null; renderWorkout(); }
@@ -694,13 +796,13 @@ function wSaveForm(dayIdx) {
   if (!name) { document.getElementById('w-ex-name').focus(); return; }
   if (wEditMode.exId === null) {
     const id = wNextId++;
-    localStorage.setItem('pn_wid', wNextId);
+    localStorage.setItem(pfKey('wid'), wNextId);
     wExercises[dayIdx].push({id, name, sets, reps, carga});
   } else {
     const ex = wExercises[dayIdx].find(e => e.id === wEditMode.exId);
     if (ex) Object.assign(ex, {name, sets, reps, carga});
   }
-  localStorage.setItem('pn_wex', JSON.stringify(wExercises));
+  localStorage.setItem(pfKey('wex'), JSON.stringify(wExercises));
   wEditMode = null;
   renderWorkout();
 }
@@ -709,15 +811,15 @@ function wDeleteEx(dayIdx, exId) {
   if (!confirm('Excluir este exercício?')) return;
   wExercises[dayIdx] = wExercises[dayIdx].filter(e => e.id !== exId);
   Object.keys(wSetState).forEach(k => { if (k.startsWith(dayIdx+'-'+exId+'-')) delete wSetState[k]; });
-  localStorage.setItem('pn_wex', JSON.stringify(wExercises));
-  localStorage.setItem('pn_wst', JSON.stringify(wSetState));
+  localStorage.setItem(pfKey('wex'), JSON.stringify(wExercises));
+  localStorage.setItem(pfKey('wst'), JSON.stringify(wSetState));
   renderWorkout();
 }
 
 function toggleSet(dayIdx, exId, setIdx) {
   const key = dayIdx+'-'+exId+'-'+setIdx;
   wSetState[key] = !wSetState[key];
-  localStorage.setItem('pn_wst', JSON.stringify(wSetState));
+  localStorage.setItem(pfKey('wst'), JSON.stringify(wSetState));
   renderWorkout();
 }
 
@@ -725,7 +827,7 @@ function resetWorkout(dayIdx) {
   (wExercises[dayIdx] || []).forEach(ex => {
     for (let s = 0; s < ex.sets; s++) delete wSetState[dayIdx+'-'+ex.id+'-'+s];
   });
-  localStorage.setItem('pn_wst', JSON.stringify(wSetState));
+  localStorage.setItem(pfKey('wst'), JSON.stringify(wSetState));
   renderWorkout();
 }
 
@@ -786,13 +888,13 @@ function wSaveCardioForm(dayIdx) {
   if (!name) { document.getElementById('w-cardio-name').focus(); return; }
   if (wEditMode.exId === null) {
     const id = wNextId++;
-    localStorage.setItem('pn_wid', wNextId);
+    localStorage.setItem(pfKey('wid'), wNextId);
     wExercises[dayIdx].push({id, name, duration, intensity, type: 'cardio', sets: 1, reps: '—', carga: ''});
   } else {
     const ex = wExercises[dayIdx].find(e => e.id === wEditMode.exId);
     if (ex) Object.assign(ex, {name, duration, intensity, type: 'cardio'});
   }
-  localStorage.setItem('pn_wex', JSON.stringify(wExercises));
+  localStorage.setItem(pfKey('wex'), JSON.stringify(wExercises));
   wEditMode = null;
   renderWorkout();
 }
@@ -957,7 +1059,19 @@ function showSection(id, btn) {
 }
 
 // ── MEALS ─────────────────────────────────────────────────────────────────────
-function renderMeals() {
+function renderMeals(profileId) {
+  const pid = profileId || (currentProfile && currentProfile.id) || 'lucas';
+  const profileMeals = pid === 'lucas' ? meals : [];
+
+  if (!profileMeals.length) {
+    document.getElementById('m-kcal').textContent = '—';
+    document.getElementById('m-p').textContent = '—';
+    document.getElementById('m-c').textContent = '—';
+    document.getElementById('m-g').textContent = '—';
+    document.getElementById('meals-container').innerHTML = `<div class="empty-state" style="padding:48px 16px"><i class="ti ti-fork-knife" style="font-size:32px;display:block;margin-bottom:12px;color:var(--text-subtle)"></i>Nenhum plano alimentar configurado ainda.<br>Entre em contato para montar sua dieta personalizada.</div>`;
+    return;
+  }
+
   const t = dayTotals();
   document.getElementById('m-kcal').textContent = t.kcal;
   document.getElementById('m-p').textContent = t.p + 'g';
@@ -967,7 +1081,7 @@ function renderMeals() {
   const container = document.getElementById('meals-container');
   container.innerHTML = '';
 
-  meals.forEach(meal => {
+  profileMeals.forEach(meal => {
     const tot = mealTotals(meal);
     const div = document.createElement('div');
     div.className = 'meal-card';
@@ -1018,8 +1132,14 @@ function selectSwap(mealId, idx) {
 }
 
 // ── SUPPS ─────────────────────────────────────────────────────────────────────
-function renderSupps() {
-  document.getElementById('supp-grid').innerHTML = supps.map(s => `
+function renderSupps(profileId) {
+  const pid = profileId || (currentProfile && currentProfile.id) || 'lucas';
+  const profileSupps = pid === 'lucas' ? supps : [];
+  if (!profileSupps.length) {
+    document.getElementById('supp-grid').innerHTML = `<div class="empty-state" style="grid-column:1/-1;padding:48px 16px"><i class="ti ti-pill" style="font-size:32px;display:block;margin-bottom:12px;color:var(--text-subtle)"></i>Nenhum suplemento configurado ainda.</div>`;
+    return;
+  }
+  document.getElementById('supp-grid').innerHTML = profileSupps.map(s => `
     <div class="supp-card">
       <div class="supp-name">${s.name}</div>
       <div class="supp-dose">${s.dose}</div>
@@ -1198,12 +1318,7 @@ function addEval() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-evLoad();
-clLoad();
-renderMeals();
-renderSupps();
-renderChecklist();
-renderWorkout();
+renderProfileScreen();
 </script>
 </body>
 </html>
