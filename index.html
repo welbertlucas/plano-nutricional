@@ -299,11 +299,14 @@
       <div class="topbar-title" id="header-title"></div>
       <div class="topbar-sub" id="header-sub"></div>
     </div>
-    <button class="profile-switch-btn" onclick="switchProfile()">
-      <div class="profile-switch-avatar" id="switch-avatar"></div>
-      <span id="switch-name"></span>
-      <i class="ti ti-chevron-down" style="font-size:11px"></i>
-    </button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="icon-btn" onclick="showSyncModal()" title="Backup & Restauração" style="width:34px;height:34px;border-radius:10px;flex-shrink:0"><i class="ti ti-cloud-upload"></i></button>
+      <button class="profile-switch-btn" onclick="switchProfile()">
+        <div class="profile-switch-avatar" id="switch-avatar"></div>
+        <span id="switch-name"></span>
+        <i class="ti ti-chevron-down" style="font-size:11px"></i>
+      </button>
+    </div>
   </div>
 
   <div class="app">
@@ -883,14 +886,15 @@ function wSaveForm(dayIdx) {
   const sets  = parseInt(document.getElementById('w-ex-sets').value) || 3;
   const reps  = (document.getElementById('w-ex-reps').value || '').trim() || '—';
   const carga = (document.getElementById('w-ex-carga').value || '').trim();
+  const notes = (document.getElementById('w-ex-notes').value || '').trim();
   if (!name) { document.getElementById('w-ex-name').focus(); return; }
   if (wEditMode.exId === null) {
     const id = wNextId++;
     localStorage.setItem(pfKey('wid'), wNextId);
-    wExercises[dayIdx].push({id, name, sets, reps, carga});
+    wExercises[dayIdx].push({id, name, sets, reps, carga, notes});
   } else {
     const ex = wExercises[dayIdx].find(e => e.id === wEditMode.exId);
-    if (ex) Object.assign(ex, {name, sets, reps, carga});
+    if (ex) Object.assign(ex, {name, sets, reps, carga, notes});
   }
   localStorage.setItem(pfKey('wex'), JSON.stringify(wExercises));
   wEditMode = null;
@@ -903,6 +907,17 @@ function wDeleteEx(dayIdx, exId) {
   Object.keys(wSetState).forEach(k => { if (k.startsWith(dayIdx+'-'+exId+'-')) delete wSetState[k]; });
   localStorage.setItem(pfKey('wex'), JSON.stringify(wExercises));
   localStorage.setItem(pfKey('wst'), JSON.stringify(wSetState));
+  renderWorkout();
+}
+
+function wMoveEx(dayIdx, exId, dir) {
+  const exs = wExercises[dayIdx];
+  const idx = exs.findIndex(e => e.id === exId);
+  if (idx < 0) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= exs.length) return;
+  [exs[idx], exs[newIdx]] = [exs[newIdx], exs[idx]];
+  localStorage.setItem(pfKey('wex'), JSON.stringify(wExercises));
   renderWorkout();
 }
 
@@ -941,6 +956,12 @@ function wFormHtml(dayIdx, ex) {
         <input type="text" id="w-ex-carga" placeholder="ex: 80 kg" value="${ex ? ex.carga : ''}">
       </div>
     </div>
+    <div style="margin-top:8px">
+      <div class="form-group">
+        <label class="form-label">Observações</label>
+        <input type="text" id="w-ex-notes" placeholder="Ex: Foco na contração, pegada pronada..." value="${ex ? ex.notes || '' : ''}">
+      </div>
+    </div>
     <div style="margin-top:10px;display:flex;gap:8px">
       <button class="btn btn-green" onclick="wSaveForm(${dayIdx})"><i class="ti ti-device-floppy"></i> Salvar</button>
       <button class="btn btn-outline" onclick="wCancelEdit()">Cancelar</button>
@@ -964,6 +985,12 @@ function wCardioFormHtml(dayIdx, ex) {
         <input type="text" id="w-cardio-intensity" placeholder="ex: Moderada, 7 km/h" value="${ex ? ex.intensity : ''}">
       </div>
     </div>
+    <div style="margin-top:8px">
+      <div class="form-group">
+        <label class="form-label">Observações</label>
+        <input type="text" id="w-cardio-notes" placeholder="Ex: Inclinação 2%, zona 2..." value="${ex ? ex.notes || '' : ''}">
+      </div>
+    </div>
     <div style="margin-top:10px;display:flex;gap:8px">
       <button class="btn btn-green" onclick="wSaveCardioForm(${dayIdx})"><i class="ti ti-device-floppy"></i> Salvar</button>
       <button class="btn btn-outline" onclick="wCancelEdit()">Cancelar</button>
@@ -975,14 +1002,15 @@ function wSaveCardioForm(dayIdx) {
   const name      = (document.getElementById('w-cardio-name').value || '').trim();
   const duration  = parseInt(document.getElementById('w-cardio-duration').value) || null;
   const intensity = (document.getElementById('w-cardio-intensity').value || '').trim();
+  const notes     = (document.getElementById('w-cardio-notes').value || '').trim();
   if (!name) { document.getElementById('w-cardio-name').focus(); return; }
   if (wEditMode.exId === null) {
     const id = wNextId++;
     localStorage.setItem(pfKey('wid'), wNextId);
-    wExercises[dayIdx].push({id, name, duration, intensity, type: 'cardio', sets: 1, reps: '—', carga: ''});
+    wExercises[dayIdx].push({id, name, duration, intensity, notes, type: 'cardio', sets: 1, reps: '—', carga: ''});
   } else {
     const ex = wExercises[dayIdx].find(e => e.id === wEditMode.exId);
-    if (ex) Object.assign(ex, {name, duration, intensity, type: 'cardio'});
+    if (ex) Object.assign(ex, {name, duration, intensity, notes, type: 'cardio'});
   }
   localStorage.setItem(pfKey('wex'), JSON.stringify(wExercises));
   wEditMode = null;
@@ -1039,9 +1067,12 @@ function renderWorkout() {
     </div>
   </div>`;
 
-  const exerciseCards = exs.map(ex => {
+  const exerciseCards = exs.map((ex, exIdx) => {
     const isEditing = wEditMode && wEditMode.dayIdx === selectedWorkoutDay && wEditMode.exId === ex.id;
     if (isEditing) return ex.type === 'cardio' ? wCardioFormHtml(selectedWorkoutDay, ex) : wFormHtml(selectedWorkoutDay, ex);
+
+    const upDisabled   = exIdx === 0             ? 'style="opacity:0.25;pointer-events:none"' : '';
+    const downDisabled = exIdx === exs.length - 1 ? 'style="opacity:0.25;pointer-events:none"' : '';
 
     if (ex.type === 'cardio') {
       const done = !!wSetState[selectedWorkoutDay+'-'+ex.id+'-0'];
@@ -1050,9 +1081,12 @@ function renderWorkout() {
           <div>
             <div class="exercise-name"><i class="ti ti-run" style="font-size:13px;margin-right:4px"></i>${ex.name}</div>
             <div class="exercise-meta">${ex.duration ? ex.duration+' min' : ''}${ex.intensity ? ' · '+ex.intensity : ''}</div>
+            ${ex.notes ? `<div class="exercise-meta" style="margin-top:2px;font-style:italic;color:var(--text-subtle)">${ex.notes}</div>` : ''}
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
             ${done ? `<span class="exercise-badge">✓ Feito</span>` : ''}
+            <button class="icon-btn" onclick="wMoveEx(${selectedWorkoutDay},${ex.id},-1)" title="Mover para cima" ${upDisabled}><i class="ti ti-arrow-up"></i></button>
+            <button class="icon-btn" onclick="wMoveEx(${selectedWorkoutDay},${ex.id},1)" title="Mover para baixo" ${downDisabled}><i class="ti ti-arrow-down"></i></button>
             <button class="icon-btn" onclick="wEditEx(${selectedWorkoutDay},${ex.id})" title="Editar"><i class="ti ti-pencil"></i></button>
             <button class="icon-btn danger" onclick="wDeleteEx(${selectedWorkoutDay},${ex.id})" title="Excluir"><i class="ti ti-trash"></i></button>
           </div>
@@ -1074,9 +1108,12 @@ function renderWorkout() {
         <div>
           <div class="exercise-name">${ex.name}</div>
           <div class="exercise-meta">${ex.sets} séries · ${ex.reps} reps${ex.carga ? ' · '+ex.carga : ''}</div>
+          ${ex.notes ? `<div class="exercise-meta" style="margin-top:2px;font-style:italic;color:var(--text-subtle)">${ex.notes}</div>` : ''}
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
           ${done > 0 ? `<span class="exercise-badge">${done}/${ex.sets}</span>` : ''}
+          <button class="icon-btn" onclick="wMoveEx(${selectedWorkoutDay},${ex.id},-1)" title="Mover para cima" ${upDisabled}><i class="ti ti-arrow-up"></i></button>
+          <button class="icon-btn" onclick="wMoveEx(${selectedWorkoutDay},${ex.id},1)" title="Mover para baixo" ${downDisabled}><i class="ti ti-arrow-down"></i></button>
           <button class="icon-btn" onclick="wEditEx(${selectedWorkoutDay},${ex.id})" title="Editar"><i class="ti ti-pencil"></i></button>
           <button class="icon-btn danger" onclick="wDeleteEx(${selectedWorkoutDay},${ex.id})" title="Excluir"><i class="ti ti-trash"></i></button>
         </div>
@@ -1506,6 +1543,83 @@ function closeExamViewer() {
   if (v) v.remove();
 }
 
+function editExam(id) {
+  const exam = exams.find(e => e.id === id);
+  if (!exam) return;
+  const cats = ['Sangue','Hormônios','Imagem','Urina','Cardiológico','Outro'];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'exam-edit-modal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-handle"></div>
+      <div class="modal-title"><i class="ti ti-pencil"></i> Editar exame</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Nome do exame</label>
+          <input type="text" id="ee-name" value="${exam.name}">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Link do Google Drive</label>
+          <input type="text" id="ee-url" value="${exam.url}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data do exame</label>
+          <input type="date" id="ee-date" value="${exam.date}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <select id="ee-category" style="width:100%;padding:9px 11px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;font-weight:600">
+            ${cats.map(c => `<option value="${c}" ${exam.category===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Observações (opcional)</label>
+          <input type="text" id="ee-notes" placeholder="Ex: Em jejum, laboratório X" value="${exam.notes || ''}">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-green" onclick="saveEditExam(${id})"><i class="ti ti-device-floppy"></i> Salvar</button>
+        <button class="btn btn-outline" onclick="closeExamEditModal()">Cancelar</button>
+        <button class="btn btn-red" onclick="deleteExamFromModal(${id})" style="margin-left:auto"><i class="ti ti-trash"></i> Excluir</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) closeExamEditModal(); });
+  document.body.appendChild(overlay);
+}
+
+function saveEditExam(id) {
+  const exam = exams.find(e => e.id === id);
+  if (!exam) return;
+  const name  = document.getElementById('ee-name').value.trim();
+  const url   = document.getElementById('ee-url').value.trim();
+  const date  = document.getElementById('ee-date').value;
+  const cat   = document.getElementById('ee-category').value;
+  const notes = document.getElementById('ee-notes').value.trim();
+  if (!name) { alert('Informe o nome do exame.'); return; }
+  if (!url)  { alert('Cole o link do Google Drive.'); return; }
+  if (!date) { alert('Informe a data do exame.'); return; }
+  const embedUrl = driveUrlToEmbed(url);
+  if (!embedUrl) { alert('Link inválido.'); return; }
+  Object.assign(exam, {name, url: driveUrlToOpen(url), embedUrl, date, category: cat, notes});
+  exPersist();
+  closeExamEditModal();
+  renderExams();
+}
+
+function closeExamEditModal() {
+  const m = document.getElementById('exam-edit-modal');
+  if (m) m.remove();
+}
+
+function deleteExamFromModal(id) {
+  if (!confirm('Excluir este exame?')) return;
+  exams = exams.filter(e => e.id !== id);
+  exPersist();
+  closeExamEditModal();
+  renderExams();
+}
+
 function renderExams() {
   const list = document.getElementById('exam-list');
   if (!list) return;
@@ -1526,11 +1640,103 @@ function renderExams() {
       </div>
       <div class="exam-actions">
         <button class="icon-btn" onclick="openExam(${e.id})" title="Visualizar"><i class="ti ti-eye"></i></button>
+        <button class="icon-btn" onclick="editExam(${e.id})" title="Editar"><i class="ti ti-pencil"></i></button>
         <a href="${e.url}" target="_blank" rel="noopener" class="icon-btn" title="Abrir no Drive"><i class="ti ti-external-link"></i></a>
         <button class="icon-btn danger" onclick="deleteExam(${e.id})" title="Excluir"><i class="ti ti-trash"></i></button>
       </div>
     </div>`;
   }).join('');
+}
+
+// ── BACKUP & RESTAURAÇÃO ──────────────────────────────────────────────────────
+function showSyncModal() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('pn_')) data[k] = localStorage.getItem(k);
+  }
+  const exportStr = JSON.stringify(data);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'sync-modal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-handle"></div>
+      <div class="modal-title"><i class="ti ti-cloud-upload"></i> Backup & Restauração</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;font-weight:500;line-height:1.6">
+        Os dados ficam salvos <strong>no navegador deste aparelho</strong>. Para usar em outro dispositivo, exporte abaixo e importe no outro aparelho.
+      </p>
+      <div class="form-card" style="margin-bottom:12px">
+        <div class="form-card-title"><i class="ti ti-download"></i> Exportar dados</div>
+        <textarea id="sync-export-area" readonly style="width:100%;height:90px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;font-family:monospace;padding:8px;resize:none;margin-bottom:10px">${exportStr}</textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-green" onclick="copyExportData()"><i class="ti ti-copy"></i> Copiar texto</button>
+          <button class="btn btn-outline" onclick="downloadExportData()"><i class="ti ti-download"></i> Baixar arquivo</button>
+        </div>
+      </div>
+      <div class="form-card" style="margin-bottom:0">
+        <div class="form-card-title"><i class="ti ti-upload"></i> Importar dados</div>
+        <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:500">Cole o código copiado ou selecione o arquivo exportado:</p>
+        <textarea id="sync-import-area" placeholder="Cole aqui o código de backup..." style="width:100%;height:80px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;font-family:monospace;padding:8px;resize:none;margin-bottom:10px"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-green" onclick="importData()"><i class="ti ti-upload"></i> Restaurar</button>
+          <label class="btn btn-outline" style="cursor:pointer"><i class="ti ti-file"></i> Arquivo <input type="file" accept=".json" onchange="loadImportFile(event)" style="display:none"></label>
+        </div>
+      </div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn btn-outline" onclick="closeSyncModal()">Fechar</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) closeSyncModal(); });
+  document.body.appendChild(overlay);
+}
+
+function closeSyncModal() {
+  const m = document.getElementById('sync-modal');
+  if (m) m.remove();
+}
+
+function copyExportData() {
+  const area = document.getElementById('sync-export-area');
+  area.select();
+  navigator.clipboard.writeText(area.value)
+    .then(() => alert('Copiado! Cole no outro dispositivo.'))
+    .catch(() => { document.execCommand('copy'); alert('Copiado!'); });
+}
+
+function downloadExportData() {
+  const area = document.getElementById('sync-export-area');
+  const blob = new Blob([area.value], {type: 'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'plano-nutricional-backup.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function loadImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { document.getElementById('sync-import-area').value = ev.target.result; };
+  reader.readAsText(file);
+}
+
+function importData() {
+  const text = (document.getElementById('sync-import-area').value || '').trim();
+  if (!text) { alert('Cole o código de backup primeiro.'); return; }
+  try {
+    const data = JSON.parse(text);
+    const keys = Object.keys(data).filter(k => k.startsWith('pn_'));
+    if (!keys.length) { alert('Código inválido ou sem dados para importar.'); return; }
+    if (!confirm('Isso vai sobrescrever os dados atuais neste dispositivo. Continuar?')) return;
+    keys.forEach(k => localStorage.setItem(k, data[k]));
+    closeSyncModal();
+    alert('Dados restaurados com sucesso! O app será recarregado.');
+    location.reload();
+  } catch(e) {
+    alert('Código inválido. Verifique se copiou o texto completo corretamente.');
+  }
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
