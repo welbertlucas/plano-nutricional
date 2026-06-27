@@ -1077,9 +1077,56 @@ function resetWorkoutDay(idx) {
 }
 
 // ── GERAÇÃO DE TREINO COM IA ──────────────────────────────────────────────────
+const AI_PROVIDERS = {
+  gemini: {
+    label: '✦ Google Gemini',
+    badge: 'Gratuito',
+    placeholder: 'Cole sua chave do Google AI Studio',
+    hint: 'Gratuito em <strong>aistudio.google.com</strong> → Get API key. Sem cartão de crédito.',
+    storageKey: 'gemini_key'
+  },
+  anthropic: {
+    label: '◆ Anthropic Claude',
+    badge: 'Pago',
+    placeholder: 'sk-ant-api03-...',
+    hint: 'Pago em <strong>console.anthropic.com</strong> → API Keys.',
+    storageKey: 'anthropic_key'
+  }
+};
+
+function aiProviderHtml() {
+  const saved = localStorage.getItem('ai_provider') || 'gemini';
+  return Object.entries(AI_PROVIDERS).map(([k, p]) => `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1.5px solid ${saved===k?'var(--orange)':'var(--border)'};background:${saved===k?'var(--orange-bg)':'var(--surface)'};cursor:pointer;transition:all .15s">
+      <input type="radio" name="ai-provider" value="${k}" ${saved===k?'checked':''} onchange="updateAIProviderUI()" style="accent-color:var(--orange)">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${p.label}</div>
+      </div>
+      <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;background:${k==='gemini'?'var(--green-bg)':'var(--orange-bg)'};color:${k==='gemini'?'var(--green)':'var(--orange)'}">${p.badge}</span>
+    </label>`).join('');
+}
+
+function updateAIProviderUI() {
+  const provider = document.querySelector('input[name="ai-provider"]:checked')?.value || 'gemini';
+  localStorage.setItem('ai_provider', provider);
+  const p = AI_PROVIDERS[provider];
+  const savedKey = localStorage.getItem(p.storageKey) || '';
+  document.getElementById('ai-key').placeholder = p.placeholder;
+  document.getElementById('ai-key').value = savedKey;
+  document.getElementById('ai-key-hint').innerHTML = p.hint;
+  // Update radio label styles
+  document.querySelectorAll('input[name="ai-provider"]').forEach(r => {
+    const label = r.closest('label');
+    const active = r.value === provider;
+    label.style.borderColor = active ? 'var(--orange)' : 'var(--border)';
+    label.style.background  = active ? 'var(--orange-bg)' : 'var(--surface)';
+  });
+}
+
 function showAIModal(dayIdx) {
   const wd = workoutDays[dayIdx];
-  const savedKey = localStorage.getItem('anthropic_key') || '';
+  const savedProvider = localStorage.getItem('ai_provider') || 'gemini';
+  const savedKey = localStorage.getItem(AI_PROVIDERS[savedProvider].storageKey) || '';
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'ai-modal';
@@ -1088,6 +1135,10 @@ function showAIModal(dayIdx) {
       <div class="modal-handle"></div>
       <div class="modal-title"><i class="ti ti-sparkles" style="color:var(--orange)"></i> Gerar treino com IA</div>
       <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <div class="form-label" style="margin-bottom:8px">Provedor de IA</div>
+          <div style="display:flex;flex-direction:column;gap:6px">${aiProviderHtml()}</div>
+        </div>
         <div class="form-group">
           <label class="form-label">Tipo de treino</label>
           <input type="text" id="ai-type" value="${wd.label} — ${wd.muscles}" placeholder="Ex: Pull — Costas e Bíceps">
@@ -1108,7 +1159,7 @@ function showAIModal(dayIdx) {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">Séries por exercício</label>
+            <label class="form-label">Séries</label>
             <input type="number" id="ai-sets" value="4" min="1" max="6">
           </div>
           <div class="form-group">
@@ -1117,18 +1168,18 @@ function showAIModal(dayIdx) {
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Equipamentos disponíveis</label>
-          <input type="text" id="ai-equipment" value="Academia completa (barras, halteres, cabos, máquinas)" placeholder="Ex: Halteres, barra, cabo">
+          <label class="form-label">Equipamentos</label>
+          <input type="text" id="ai-equipment" value="Academia completa (barras, halteres, cabos, máquinas)">
         </div>
         <div class="form-group">
           <label class="form-label">Observações extras (opcional)</label>
-          <input type="text" id="ai-extra" placeholder="Ex: Evitar barra livre, priorizar isometria...">
+          <input type="text" id="ai-extra" placeholder="Ex: Evitar barra livre, foco em unilaterais...">
         </div>
         <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px">
           <div class="form-group">
-            <label class="form-label" style="display:flex;align-items:center;gap:5px"><i class="ti ti-key" style="font-size:12px"></i> Chave da API Anthropic (Claude)</label>
-            <input type="password" id="ai-key" placeholder="sk-ant-api03-..." value="${savedKey}" autocomplete="off">
-            <div style="font-size:10px;color:var(--text-subtle);margin-top:5px;font-weight:500;line-height:1.5">Obtenha em <strong>console.anthropic.com</strong> → API Keys. Salva apenas neste aparelho.</div>
+            <label class="form-label" style="display:flex;align-items:center;gap:5px"><i class="ti ti-key" style="font-size:12px"></i> Chave da API</label>
+            <input type="password" id="ai-key" placeholder="${AI_PROVIDERS[savedProvider].placeholder}" value="${savedKey}" autocomplete="off">
+            <div id="ai-key-hint" style="font-size:10px;color:var(--text-subtle);margin-top:5px;font-weight:500;line-height:1.5">${AI_PROVIDERS[savedProvider].hint}</div>
           </div>
         </div>
       </div>
@@ -1157,6 +1208,7 @@ function setAIStatus(type, html) {
 }
 
 async function generateWithAI(dayIdx) {
+  const provider  = document.querySelector('input[name="ai-provider"]:checked')?.value || 'gemini';
   const apiKey    = (document.getElementById('ai-key').value || '').trim();
   const wType     = (document.getElementById('ai-type').value || '').trim();
   const level     = document.getElementById('ai-level').value;
@@ -1166,50 +1218,66 @@ async function generateWithAI(dayIdx) {
   const equipment = (document.getElementById('ai-equipment').value || '').trim();
   const extra     = (document.getElementById('ai-extra').value || '').trim();
 
-  if (!apiKey) { setAIStatus('error', 'Insira sua chave da API Anthropic.'); return; }
+  if (!apiKey) { setAIStatus('error', 'Insira sua chave da API.'); return; }
   if (!wType)  { setAIStatus('error', 'Descreva o tipo de treino.'); return; }
 
-  localStorage.setItem('anthropic_key', apiKey);
+  localStorage.setItem('ai_provider', provider);
+  localStorage.setItem(AI_PROVIDERS[provider].storageKey, apiKey);
 
   const btn = document.getElementById('ai-gen-btn');
   btn.disabled = true;
   setAIStatus('info', '<i class="ti ti-loader-2 ai-spinning" style="margin-right:6px"></i>Gerando seu treino...');
 
   const prompt = `Você é um personal trainer especializado em hipertrofia. Crie um treino de ${wType} para nível ${level}.
-Equipamentos: ${equipment}.
-Número de exercícios: ${count}. Séries: ${sets}. Repetições: ${reps}.${extra ? '\nObservações: ' + extra : ''}
-
-Responda SOMENTE com um array JSON válido, sem nenhum texto antes ou depois:
+Equipamentos: ${equipment}. Exercícios: ${count}. Séries: ${sets}. Repetições: ${reps}.${extra ? '\nObservações: '+extra : ''}
+Responda SOMENTE com um array JSON válido, sem texto antes ou depois:
 [{"name":"Nome em português","sets":${sets},"reps":"${reps}","carga":"","notes":"Dica curta de execução"}]
-
-Gere exatamente ${count} exercícios. Use nomes em português. O campo "notes" deve ter uma dica prática e curta.`;
+Gere exatamente ${count} exercícios. Use nomes em português. "notes" deve ter uma dica prática e curta.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
+    let text = '';
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'Erro ' + res.status);
+    if (provider === 'gemini') {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1500 }
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || 'Erro ' + res.status);
+      }
+      const data = await res.json();
+      text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    } else {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1500,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || 'Erro ' + res.status);
+      }
+      const data = await res.json();
+      text = data.content?.[0]?.text || '';
     }
 
-    const data = await res.json();
-    const text = data.content?.[0]?.text || '';
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) throw new Error('Resposta inesperada da IA. Tente novamente.');
-
     const exercises = JSON.parse(match[0]);
     if (!Array.isArray(exercises) || !exercises.length) throw new Error('Nenhum exercício retornado.');
 
