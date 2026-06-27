@@ -1127,7 +1127,7 @@ function showAIModal(dayIdx) {
         <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px">
           <div class="form-group">
             <label class="form-label" style="display:flex;align-items:center;gap:5px"><i class="ti ti-key" style="font-size:12px"></i> Chave da API</label>
-            <input type="password" id="ai-key" placeholder="gsk_..." value="${savedKey}" autocomplete="off">
+            <input type="text" id="ai-key" placeholder="gsk_..." value="${savedKey}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="font-family:monospace;font-size:12px">
             <div style="font-size:10px;color:var(--text-subtle);margin-top:5px;font-weight:500;line-height:1.5">Gratuito em <strong>console.groq.com</strong> → API Keys. Sem cartão de crédito.</div>
           </div>
         </div>
