@@ -1077,63 +1077,9 @@ function resetWorkoutDay(idx) {
 }
 
 // ── GERAÇÃO DE TREINO COM IA ──────────────────────────────────────────────────
-const AI_PROVIDERS = {
-  groq: {
-    label: '⚡ Groq (Llama)',
-    badge: 'Gratuito',
-    placeholder: 'gsk_...',
-    hint: 'Gratuito em <strong>console.groq.com</strong> → API Keys. Sem cartão de crédito.',
-    storageKey: 'groq_key'
-  },
-  gemini: {
-    label: '✦ Google Gemini',
-    badge: 'Gratuito',
-    placeholder: 'AIza...',
-    hint: 'Gratuito em <strong>aistudio.google.com</strong> → Get API key. <strong>Atenção:</strong> criar a chave no AI Studio, não no Google Cloud Console.',
-    storageKey: 'gemini_key'
-  },
-  anthropic: {
-    label: '◆ Anthropic Claude',
-    badge: 'Pago',
-    placeholder: 'sk-ant-api03-...',
-    hint: 'Pago em <strong>console.anthropic.com</strong> → API Keys.',
-    storageKey: 'anthropic_key'
-  }
-};
-
-function aiProviderHtml() {
-  const saved = localStorage.getItem('ai_provider') || 'gemini';
-  return Object.entries(AI_PROVIDERS).map(([k, p]) => `
-    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1.5px solid ${saved===k?'var(--orange)':'var(--border)'};background:${saved===k?'var(--orange-bg)':'var(--surface)'};cursor:pointer;transition:all .15s">
-      <input type="radio" name="ai-provider" value="${k}" ${saved===k?'checked':''} onchange="updateAIProviderUI()" style="accent-color:var(--orange)">
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:700;color:var(--text)">${p.label}</div>
-      </div>
-      <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;background:${k==='gemini'?'var(--green-bg)':'var(--orange-bg)'};color:${k==='gemini'?'var(--green)':'var(--orange)'}">${p.badge}</span>
-    </label>`).join('');
-}
-
-function updateAIProviderUI() {
-  const provider = document.querySelector('input[name="ai-provider"]:checked')?.value || 'gemini';
-  localStorage.setItem('ai_provider', provider);
-  const p = AI_PROVIDERS[provider];
-  const savedKey = localStorage.getItem(p.storageKey) || '';
-  document.getElementById('ai-key').placeholder = p.placeholder;
-  document.getElementById('ai-key').value = savedKey;
-  document.getElementById('ai-key-hint').innerHTML = p.hint;
-  // Update radio label styles
-  document.querySelectorAll('input[name="ai-provider"]').forEach(r => {
-    const label = r.closest('label');
-    const active = r.value === provider;
-    label.style.borderColor = active ? 'var(--orange)' : 'var(--border)';
-    label.style.background  = active ? 'var(--orange-bg)' : 'var(--surface)';
-  });
-}
-
 function showAIModal(dayIdx) {
   const wd = workoutDays[dayIdx];
-  const savedProvider = localStorage.getItem('ai_provider') || 'groq';
-  const savedKey = localStorage.getItem(AI_PROVIDERS[savedProvider].storageKey) || '';
+  const savedKey = localStorage.getItem('groq_key') || '';
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'ai-modal';
@@ -1142,10 +1088,6 @@ function showAIModal(dayIdx) {
       <div class="modal-handle"></div>
       <div class="modal-title"><i class="ti ti-sparkles" style="color:var(--orange)"></i> Gerar treino com IA</div>
       <div style="display:flex;flex-direction:column;gap:12px">
-        <div>
-          <div class="form-label" style="margin-bottom:8px">Provedor de IA</div>
-          <div style="display:flex;flex-direction:column;gap:6px">${aiProviderHtml()}</div>
-        </div>
         <div class="form-group">
           <label class="form-label">Tipo de treino</label>
           <input type="text" id="ai-type" value="${wd.label} — ${wd.muscles}" placeholder="Ex: Pull — Costas e Bíceps">
@@ -1185,8 +1127,8 @@ function showAIModal(dayIdx) {
         <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px">
           <div class="form-group">
             <label class="form-label" style="display:flex;align-items:center;gap:5px"><i class="ti ti-key" style="font-size:12px"></i> Chave da API</label>
-            <input type="password" id="ai-key" placeholder="${AI_PROVIDERS[savedProvider].placeholder}" value="${savedKey}" autocomplete="off">
-            <div id="ai-key-hint" style="font-size:10px;color:var(--text-subtle);margin-top:5px;font-weight:500;line-height:1.5">${AI_PROVIDERS[savedProvider].hint}</div>
+            <input type="password" id="ai-key" placeholder="gsk_..." value="${savedKey}" autocomplete="off">
+            <div style="font-size:10px;color:var(--text-subtle);margin-top:5px;font-weight:500;line-height:1.5">Gratuito em <strong>console.groq.com</strong> → API Keys. Sem cartão de crédito.</div>
           </div>
         </div>
       </div>
@@ -1215,7 +1157,6 @@ function setAIStatus(type, html) {
 }
 
 async function generateWithAI(dayIdx) {
-  const provider  = document.querySelector('input[name="ai-provider"]:checked')?.value || 'groq';
   const apiKey    = (document.getElementById('ai-key').value || '').trim();
   const wType     = (document.getElementById('ai-type').value || '').trim();
   const level     = document.getElementById('ai-level').value;
@@ -1228,8 +1169,7 @@ async function generateWithAI(dayIdx) {
   if (!apiKey) { setAIStatus('error', 'Insira sua chave da API.'); return; }
   if (!wType)  { setAIStatus('error', 'Descreva o tipo de treino.'); return; }
 
-  localStorage.setItem('ai_provider', provider);
-  localStorage.setItem(AI_PROVIDERS[provider].storageKey, apiKey);
+  localStorage.setItem('groq_key', apiKey);
 
   const btn = document.getElementById('ai-gen-btn');
   btn.disabled = true;
@@ -1242,73 +1182,26 @@ Responda SOMENTE com um array JSON válido, sem texto antes ou depois:
 Gere exatamente ${count} exercícios. Use nomes em português. "notes" deve ter uma dica prática e curta.`;
 
   try {
-    let text = '';
-
-    if (provider === 'groq') {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 1500,
-          temperature: 0.7
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || 'Erro ' + res.status);
-      }
-      const data = await res.json();
-      text = data.choices?.[0]?.message?.content || '';
-
-    } else if (provider === 'gemini') {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1500 }
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || 'Erro ' + res.status);
-      }
-      const data = await res.json();
-      text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    } else if (provider === 'anthropic') {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1500,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || 'Erro ' + res.status);
-      }
-      const data = await res.json();
-      text = data.content?.[0]?.text || '';
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 1500,
+        temperature: 0.7
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'Erro ' + res.status);
     }
-
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || '';
     const match = text.match(/\[[\s\S]*\]/);
-    if (!match) throw new Error('Resposta inesperada da IA. Tente novamente.');
+    if (!match) throw new Error('Resposta inesperada. Tente novamente.');
     const exercises = JSON.parse(match[0]);
     if (!Array.isArray(exercises) || !exercises.length) throw new Error('Nenhum exercício retornado.');
-
     applyAIWorkout(dayIdx, exercises);
     closeAIModal();
   } catch(e) {
