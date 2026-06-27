@@ -278,6 +278,8 @@
     .charts-2col { grid-template-columns: 1fr; }
     .form-grid { grid-template-columns: repeat(2, 1fr); }
   }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ai-spinning { animation: spin 1s linear infinite; display: inline-block; }
 </style>
 </head>
 <body>
@@ -795,7 +797,7 @@ function deleteEval(idx) {
 let charts = {};
 
 // ── TREINO ───────────────────────────────────────────────────────────────────
-const workoutDays = [
+const defaultWorkoutDays = [
   { label:"Pull",  day:"Seg", muscles:"Costas · Bíceps" },
   { label:"Push",  day:"Ter", muscles:"Peito · Ombro · Tríceps" },
   { label:"Leg",   day:"Qua", muscles:"Quadríceps · Posterior · Glúteo · Panturrilha" },
@@ -804,6 +806,7 @@ const workoutDays = [
   { label:"Lower", day:"Sáb", muscles:"Corpo inferior completo" },
   { label:"Off",   day:"Dom", muscles:"Descanso ativo" },
 ];
+let workoutDays = defaultWorkoutDays.map(d => ({...d}));
 
 const jsDay2workout = {1:0,2:1,3:2,4:3,5:4,6:5,0:6};
 let selectedWorkoutDay = jsDay2workout[new Date().getDay()];
@@ -814,6 +817,8 @@ let wEditMode  = null;
 
 function wLoadProfile() {
   try {
+    const wdays = localStorage.getItem(pfKey('wo_days'));
+    workoutDays = wdays ? JSON.parse(wdays) : defaultWorkoutDays.map(d => ({...d}));
     wExercises = workoutDays.map(() => []);
     wSetState = {}; wNextId = 1;
     const ex = localStorage.getItem(pfKey('wex')); if (ex) wExercises = JSON.parse(ex);
@@ -1017,6 +1022,222 @@ function wSaveCardioForm(dayIdx) {
   renderWorkout();
 }
 
+// ── EDITAR DIA DE TREINO ──────────────────────────────────────────────────────
+function editWorkoutDay(idx) {
+  const wd = workoutDays[idx];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'wd-edit-modal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-handle"></div>
+      <div class="modal-title"><i class="ti ti-pencil"></i> Editar — ${wd.day}feira</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="form-group">
+          <label class="form-label">Nome do treino</label>
+          <input type="text" id="wd-label" value="${wd.label}" placeholder="Ex: Pull, Push, Leg, Off, Full Body...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Grupos musculares</label>
+          <input type="text" id="wd-muscles" value="${wd.muscles}" placeholder="Ex: Costas · Bíceps">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-green" onclick="saveWorkoutDay(${idx})"><i class="ti ti-device-floppy"></i> Salvar</button>
+        <button class="btn btn-outline" onclick="closeWDModal()">Cancelar</button>
+        <button class="btn btn-outline" onclick="resetWorkoutDay(${idx})" style="margin-left:auto"><i class="ti ti-refresh"></i> Padrão</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) closeWDModal(); });
+  document.body.appendChild(overlay);
+}
+
+function saveWorkoutDay(idx) {
+  const label   = (document.getElementById('wd-label').value || '').trim();
+  const muscles = (document.getElementById('wd-muscles').value || '').trim();
+  if (!label) { alert('Insira o nome do treino.'); return; }
+  workoutDays[idx].label   = label;
+  workoutDays[idx].muscles = muscles;
+  localStorage.setItem(pfKey('wo_days'), JSON.stringify(workoutDays));
+  closeWDModal();
+  renderWorkout();
+}
+
+function closeWDModal() {
+  const m = document.getElementById('wd-edit-modal');
+  if (m) m.remove();
+}
+
+function resetWorkoutDay(idx) {
+  if (!confirm('Restaurar configuração padrão para este dia?')) return;
+  workoutDays[idx] = {...defaultWorkoutDays[idx]};
+  localStorage.setItem(pfKey('wo_days'), JSON.stringify(workoutDays));
+  closeWDModal();
+  renderWorkout();
+}
+
+// ── GERAÇÃO DE TREINO COM IA ──────────────────────────────────────────────────
+function showAIModal(dayIdx) {
+  const wd = workoutDays[dayIdx];
+  const savedKey = localStorage.getItem('anthropic_key') || '';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'ai-modal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-handle"></div>
+      <div class="modal-title"><i class="ti ti-sparkles" style="color:var(--orange)"></i> Gerar treino com IA</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="form-group">
+          <label class="form-label">Tipo de treino</label>
+          <input type="text" id="ai-type" value="${wd.label} — ${wd.muscles}" placeholder="Ex: Pull — Costas e Bíceps">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">Nível</label>
+            <select id="ai-level" style="width:100%;padding:9px 11px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;font-weight:600">
+              <option value="iniciante">Iniciante</option>
+              <option value="intermediário" selected>Intermediário</option>
+              <option value="avançado">Avançado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nº de exercícios</label>
+            <input type="number" id="ai-count" value="6" min="3" max="12">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">Séries por exercício</label>
+            <input type="number" id="ai-sets" value="4" min="1" max="6">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Repetições</label>
+            <input type="text" id="ai-reps" value="8–12" placeholder="8–12">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Equipamentos disponíveis</label>
+          <input type="text" id="ai-equipment" value="Academia completa (barras, halteres, cabos, máquinas)" placeholder="Ex: Halteres, barra, cabo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observações extras (opcional)</label>
+          <input type="text" id="ai-extra" placeholder="Ex: Evitar barra livre, priorizar isometria...">
+        </div>
+        <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px">
+          <div class="form-group">
+            <label class="form-label" style="display:flex;align-items:center;gap:5px"><i class="ti ti-key" style="font-size:12px"></i> Chave da API Anthropic (Claude)</label>
+            <input type="password" id="ai-key" placeholder="sk-ant-api03-..." value="${savedKey}" autocomplete="off">
+            <div style="font-size:10px;color:var(--text-subtle);margin-top:5px;font-weight:500;line-height:1.5">Obtenha em <strong>console.anthropic.com</strong> → API Keys. Salva apenas neste aparelho.</div>
+          </div>
+        </div>
+      </div>
+      <div id="ai-status" style="display:none;margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12px;font-weight:600"></div>
+      <div class="modal-actions">
+        <button class="btn btn-green" id="ai-gen-btn" onclick="generateWithAI(${dayIdx})"><i class="ti ti-sparkles"></i> Gerar treino</button>
+        <button class="btn btn-outline" onclick="closeAIModal()">Cancelar</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) closeAIModal(); });
+  document.body.appendChild(overlay);
+}
+
+function closeAIModal() {
+  const m = document.getElementById('ai-modal');
+  if (m) m.remove();
+}
+
+function setAIStatus(type, html) {
+  const el = document.getElementById('ai-status');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.background = type === 'error' ? 'var(--red-bg)' : 'var(--orange-bg)';
+  el.style.color = type === 'error' ? 'var(--red)' : 'var(--orange)';
+  el.innerHTML = html;
+}
+
+async function generateWithAI(dayIdx) {
+  const apiKey    = (document.getElementById('ai-key').value || '').trim();
+  const wType     = (document.getElementById('ai-type').value || '').trim();
+  const level     = document.getElementById('ai-level').value;
+  const count     = parseInt(document.getElementById('ai-count').value) || 6;
+  const sets      = parseInt(document.getElementById('ai-sets').value) || 4;
+  const reps      = (document.getElementById('ai-reps').value || '8–12').trim();
+  const equipment = (document.getElementById('ai-equipment').value || '').trim();
+  const extra     = (document.getElementById('ai-extra').value || '').trim();
+
+  if (!apiKey) { setAIStatus('error', 'Insira sua chave da API Anthropic.'); return; }
+  if (!wType)  { setAIStatus('error', 'Descreva o tipo de treino.'); return; }
+
+  localStorage.setItem('anthropic_key', apiKey);
+
+  const btn = document.getElementById('ai-gen-btn');
+  btn.disabled = true;
+  setAIStatus('info', '<i class="ti ti-loader-2 ai-spinning" style="margin-right:6px"></i>Gerando seu treino...');
+
+  const prompt = `Você é um personal trainer especializado em hipertrofia. Crie um treino de ${wType} para nível ${level}.
+Equipamentos: ${equipment}.
+Número de exercícios: ${count}. Séries: ${sets}. Repetições: ${reps}.${extra ? '\nObservações: ' + extra : ''}
+
+Responda SOMENTE com um array JSON válido, sem nenhum texto antes ou depois:
+[{"name":"Nome em português","sets":${sets},"reps":"${reps}","carga":"","notes":"Dica curta de execução"}]
+
+Gere exatamente ${count} exercícios. Use nomes em português. O campo "notes" deve ter uma dica prática e curta.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'Erro ' + res.status);
+    }
+
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('Resposta inesperada da IA. Tente novamente.');
+
+    const exercises = JSON.parse(match[0]);
+    if (!Array.isArray(exercises) || !exercises.length) throw new Error('Nenhum exercício retornado.');
+
+    applyAIWorkout(dayIdx, exercises);
+    closeAIModal();
+  } catch(e) {
+    setAIStatus('error', '⚠ ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+function applyAIWorkout(dayIdx, exercises) {
+  exercises.forEach(ex => {
+    const id = wNextId++;
+    localStorage.setItem(pfKey('wid'), wNextId);
+    wExercises[dayIdx].push({
+      id,
+      name:  ex.name  || 'Exercício',
+      sets:  parseInt(ex.sets) || 4,
+      reps:  ex.reps  || '8–12',
+      carga: ex.carga || '',
+      notes: ex.notes || ''
+    });
+  });
+  localStorage.setItem(pfKey('wex'), JSON.stringify(wExercises));
+  renderWorkout();
+}
+
 function renderWorkout() {
   const todayIdx = jsDay2workout[new Date().getDay()];
 
@@ -1035,13 +1256,15 @@ function renderWorkout() {
   const exs  = wExercises[selectedWorkoutDay] || [];
 
   if (wd.label === 'Off' && !exs.length && !(wEditMode && wEditMode.dayIdx === selectedWorkoutDay)) {
-    body.innerHTML = `<div class="off-card">
+    body.innerHTML = `<div class="off-card" style="position:relative">
+      <button class="icon-btn" onclick="editWorkoutDay(${selectedWorkoutDay})" title="Editar dia" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);color:rgba(255,255,255,0.55)"><i class="ti ti-pencil"></i></button>
       <i class="ti ti-zzz off-icon"></i>
       <div class="off-card-title">Dia de descanso</div>
       <div class="off-card-sub">${wd.muscles}</div>
       <div class="off-card-actions">
         <button class="btn btn-outline" onclick="wAddEx(${selectedWorkoutDay})"><i class="ti ti-barbell"></i> Adicionar treino</button>
         <button class="btn btn-outline" onclick="wAddCardio(${selectedWorkoutDay})"><i class="ti ti-run"></i> Adicionar cardio</button>
+        <button class="btn btn-outline" onclick="showAIModal(${selectedWorkoutDay})" style="border-color:var(--orange);color:var(--orange)"><i class="ti ti-sparkles"></i> Gerar com IA</button>
       </div>
     </div>`;
     renderWorkoutHistory();
@@ -1057,11 +1280,14 @@ function renderWorkout() {
 
   const dayLabel = wd.label === 'Off' ? (exs.length ? 'Off + Atividade' : 'Off') : wd.label;
   const header = `<div class="workout-day-header">
-    <div>
-      <div class="workout-day-name">${dayLabel}</div>
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="workout-day-name">${dayLabel}</div>
+        <button class="icon-btn" onclick="editWorkoutDay(${selectedWorkoutDay})" title="Editar dia" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);color:rgba(255,255,255,0.55);flex-shrink:0"><i class="ti ti-pencil"></i></button>
+      </div>
       <div class="workout-day-muscles">${wd.muscles}</div>
     </div>
-    <div>
+    <div style="text-align:right;flex-shrink:0">
       <div class="workout-sets-done">${totalSets ? doneSets+'/'+totalSets : '—'}</div>
       <div class="workout-sets-label">${exs.some(e=>e.type==='cardio') ? 'atividades' : 'séries'}</div>
     </div>
@@ -1128,6 +1354,7 @@ function renderWorkout() {
     : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="wAddEx(${selectedWorkoutDay})"><i class="ti ti-plus"></i> Exercício</button>
         <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="wAddCardio(${selectedWorkoutDay})"><i class="ti ti-run"></i> Cardio</button>
+        <button class="btn btn-outline" style="flex:1;justify-content:center;border-color:var(--orange);color:var(--orange)" onclick="showAIModal(${selectedWorkoutDay})"><i class="ti ti-sparkles"></i> IA</button>
        </div>`;
 
   const resetBtn = exs.length
